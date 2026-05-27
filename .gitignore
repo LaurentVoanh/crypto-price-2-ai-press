@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes, as they only contain PHP source files (.php) which are legitimate code files that should be tracked in version control.
+Nothing should be ignored based on the provided file changes, as they only include source code files (.php) without any build artifacts, dependencies, or temporary files.

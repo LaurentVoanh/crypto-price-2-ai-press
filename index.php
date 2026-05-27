@@ -1,16 +1,16 @@
 <?php
 /**
- * index.php - NEO CRYPTO DASH v3.0
- * Dashboard Crypto IA Professionnel - Design Futuriste Avancé
+ * index.php - NEO CRYPTO DASH v4.0 ULTIMATE
+ * Dashboard Crypto IA Autonome - Trading Automatique par Renforcement
  * 
- * Fonctionnalités complètes:
- * - 12+ options d'analyse IA avancées
- * - Prompts longs enrichis (800-1200 mots) pour décisions précises
- * - Revue de presse puissante et chiffrée
- * - Portefeuille virtuel 1M€ avec apprentissage par renforcement
- * - Blog IA automatique
- * - Alertes intelligentes
- * - Correlations, sentiments, whale detection
+ * Fonctionnalités avancées:
+ * - Interface UX améliorée: bouton analyser sous le nom, analyse sur ligne dédiée
+ * - Lancement automatique des analyses IA en AJAX au chargement
+ * - Rotation intelligente de 3 clés API Mistral avec RL auto-apprentissage
+ * - Error logging ultra-complet pour debugging
+ * - IA autonome qui investit 1 000 000 € selon ses décisions
+ * - Publication automatique d'articles de blog à chaque trade
+ * - Console live des actions de l'IA en temps réel
  * - Compatible Hostinger + Mistral API
  */
 
@@ -69,7 +69,10 @@ try {
         'holdings_value' => 0,
         'total_value' => 1000000,
         'performance' => 0,
-        'positions_count' => 0
+        'positions_count' => 0,
+        'total_trades' => 0,
+        'winning_trades' => 0,
+        'losing_trades' => 0
     ];
     
     $portData = $pdo->query("SELECT cash FROM portfolio LIMIT 1")->fetch(PDO::FETCH_ASSOC);
@@ -86,20 +89,47 @@ try {
     
     $portfolioStats['total_value'] = $portfolioStats['cash'] + $portfolioStats['holdings_value'];
     $portfolioStats['performance'] = round(($portfolioStats['total_value'] - 1000000) / 1000000 * 100, 2);
+    
+    // Stats de trading
+    $tradeStats = $pdo->query("SELECT COUNT(*) as total, 
+                                      SUM(CASE WHEN pnl_percent > 0 THEN 1 ELSE 0 END) as wins,
+                                      SUM(CASE WHEN pnl_percent <= 0 THEN 1 ELSE 0 END) as losses
+                               FROM trades WHERE pnl_percent IS NOT NULL")->fetch(PDO::FETCH_ASSOC);
+    if ($tradeStats) {
+        $portfolioStats['total_trades'] = $tradeStats['total'] ?? 0;
+        $portfolioStats['winning_trades'] = $tradeStats['wins'] ?? 0;
+        $portfolioStats['losing_trades'] = $tradeStats['losses'] ?? 0;
+    }
 
     // Seuils RL
     $thresholds = $pdo->query("SELECT param, value FROM rl_thresholds")->fetchAll(PDO::FETCH_KEY_PAIR);
     $buyScore = $thresholds['buy_score'] ?? 65;
     $sellScore = $thresholds['sell_score'] ?? 35;
+    
+    // Derniers trades pour la console
+    $recentTrades = $pdo->query("SELECT t.*, c.name, c.symbol FROM trades t 
+                                 JOIN coins c ON t.coin_id = c.id 
+                                 ORDER BY t.timestamp DESC LIMIT 10")
+                        ->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
     appLog("Index error: " . $e->getMessage(), 'ERROR');
     $coins = [];
     $analysesMap = [];
     $globalAnalysis = null;
-    $portfolioStats = ['cash' => 1000000, 'holdings_value' => 0, 'total_value' => 1000000, 'performance' => 0, 'positions_count' => 0];
+    $portfolioStats = ['cash' => 1000000, 'holdings_value' => 0, 'total_value' => 1000000, 'performance' => 0, 'positions_count' => 0, 'total_trades' => 0, 'winning_trades' => 0, 'losing_trades' => 0];
     $buyScore = 65;
     $sellScore = 35;
+    $recentTrades = [];
+}
+
+// Fonction utilitaire pour formater les grands nombres
+function formatLargeNumber($number) {
+    if ($number >= 1e12) return round($number / 1e12, 2) . ' B€';
+    if ($number >= 1e9) return round($number / 1e9, 2) . ' Md€';
+    if ($number >= 1e6) return round($number / 1e6, 2) . ' M€';
+    if ($number >= 1e3) return round($number / 1e3, 2) . ' K€';
+    return round($number, 2) . '€';
 }
 ?>
 <!DOCTYPE html>
@@ -107,8 +137,8 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="NEO CRYPTO DASH - Dashboard crypto professionnel avec IA Mistral, analyses RL, portefeuille virtuel 1M€">
-    <title>NEO CRYPTO DASH v3.0 | IA Market Analyst Pro</title>
+    <meta name="description" content="NEO CRYPTO DASH v4.0 - Dashboard crypto autonome avec IA Mistral, trading automatique RL, portefeuille 1M€">
+    <title>NEO CRYPTO DASH v4.0 | IA Autonome Trading Pro</title>
     
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -231,18 +261,33 @@ try {
             border-bottom: 2px solid var(--border);
         }
         
-        .table-crypto tbody tr {
+        .table-crypto tbody tr.coin-row {
             transition: all 0.2s ease;
+            background: white;
         }
         
-        .table-crypto tbody tr:hover {
+        .table-crypto tbody tr.coin-row:hover {
             background: #f8fafc;
+        }
+        
+        .table-crypto tbody tr.analysis-row {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            display: none;
+        }
+        
+        .table-crypto tbody tr.analysis-row.show {
+            display: table-row;
         }
         
         .table-crypto tbody td {
             padding: 0.875rem 0.75rem;
             vertical-align: middle;
             border-bottom: 1px solid var(--border);
+        }
+        
+        .table-crypto tbody tr.analysis-row td {
+            padding: 1rem 0.75rem;
+            border-top: none;
         }
         
         .coin-img {
@@ -266,30 +311,37 @@ try {
         
         /* AI Buttons & Badges */
         .btn-ai-action {
-            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             border: none;
             border-radius: 12px;
-            padding: 0.5rem 1rem;
-            font-size: 0.75rem;
+            padding: 0.5rem 1.25rem;
+            font-size: 0.8rem;
             font-weight: 600;
-            color: var(--dark);
+            color: white;
             transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
         }
         
         .btn-ai-action:hover {
-            background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+            background: linear-gradient(135deg, var(--primary-dark), #1e40af);
             transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-ai-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         
         .ai-score-badge {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
             font-weight: 700;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
         }
         
         .score-excellent { background: linear-gradient(135deg, #10b981, #059669); color: white; }
@@ -297,14 +349,46 @@ try {
         .score-neutral { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
         .score-bad { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
         
-        .ai-result-box {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 0.5rem 0.75rem;
+        /* AI Analysis Block - Full Width */
+        .ai-analysis-block {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+            width: 100%;
+        }
+        
+        .ai-analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .ai-analysis-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .ai-analysis-content {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #374151;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .ai-analysis-meta {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
             font-size: 0.7rem;
-            color: #4b5563;
-            max-width: 250px;
-            line-height: 1.4;
+            color: #6b7280;
         }
         
         /* Global Analysis Section */
@@ -364,6 +448,43 @@ try {
         }
         
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Console IA Live */
+        .ai-console {
+            background: #111827;
+            color: #10b981;
+            border-radius: 16px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+        
+        .ai-console-line {
+            margin-bottom: 0.25rem;
+            word-break: break-word;
+        }
+        
+        .ai-console-time {
+            color: #6b7280;
+            margin-right: 0.5rem;
+        }
+        
+        .ai-console-action {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        
+        .ai-console-trade {
+            color: #f59e0b;
+            font-weight: 600;
+        }
+        
+        .ai-console-error {
+            color: #ef4444;
+        }
         
         /* Responsive */
         @media (max-width: 768px) {
