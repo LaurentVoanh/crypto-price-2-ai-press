@@ -789,17 +789,22 @@ function escapeHtml(str) {
 
 function forceGlobalAnalysis() {
     if (!confirm('Générer une nouvelle analyse globale ? Cela peut prendre 30-60 secondes.')) return;
-    
+
     $.ajax({
-        url: 'generate_global_press.php',
-        method: 'GET',
+        url: 'ai_analysis.php',
+        type: 'POST',
+        data: {type: 'force_global'},
         timeout: 120000,
         success: function(resp) {
-            alert('Analyse générée ! Rechargement...');
+            if (resp && resp.success) {
+                alert('Analyse générée avec succès ! ' + (resp.message || ''));
+            } else {
+                alert('Erreur: ' + (resp.error || 'échec inconnu'));
+            }
             location.reload();
         },
-        error: function() {
-            alert('Erreur lors de la génération');
+        error: function(xhr, status, err) {
+            alert('Erreur AJAX: ' + status);
         }
     });
 }
