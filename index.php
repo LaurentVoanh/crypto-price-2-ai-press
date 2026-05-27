@@ -14,6 +14,11 @@
  * - Compatible Hostinger + Mistral API
  */
 
+// Gestion des erreurs pour débogage
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Ne pas afficher les erreurs aux utilisateurs
+ini_set('log_errors', 1);
+
 define('ROOT_DIR', dirname(__FILE__));
 require_once ROOT_DIR . '/config.php';
 ensureDatabaseInitialized();

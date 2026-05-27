@@ -1,7 +1,7 @@
 <?php
 /**
  * config.php
- * Configuration centralisée pour NEO CRYPTO DASH v3.0
+ * Configuration centralisée pour NEO CRYPTO DASH v4.0
  * Compatible Hostinger Mutualisé - Design Pro Futuriste
  * 
  * Fonctionnalités:
@@ -11,6 +11,11 @@
  * - Logging complet
  * - Gestion d'erreurs robuste
  */
+
+// Gestion des erreurs pour débogage
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // Empêcher l'exécution directe
 if (!defined('ROOT_DIR')) {
