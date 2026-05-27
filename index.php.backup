@@ -1,18 +1,16 @@
 <?php
 /**
- * index.php - NEO CRYPTO DASH v5.0 ULTIMATE PRO AUTONOME
- * Dashboard Crypto IA 100% Autonome - Trading Automatique par Renforcement
+ * index.php - NEO CRYPTO DASH v5.0 ULTIMATE PRO
+ * Dashboard Crypto IA Autonome - Trading Automatique par Renforcement
  * 
  * Architecture Professionnelle Hostinger-Compatible:
- * ✅ Analyses IA automatiques en AJAX séquentiel (une par une toutes les 2s)
- * ✅ Ligne d'analyse dédiée sous chaque crypto (pas d'erreur de layout)
- * ✅ Time limit respecté avec queue intelligente
- * ✅ Messages uniquement via AJAX Toast (plus aucun alert navigateur)
- * ✅ Bouton "FULL AUTO" : analyses, RL, trading, blog en chaîne
- * ✅ Prompts IA ultra-professionnels optimisés
- * ✅ Workflow optimisé et incohérences corrigées
- * ✅ Trading déclenché à partir de score >= 60 (et non 65)
- * ✅ Site 100% autonome - l'IA gère tout toute seule
+ * - Analyses IA automatiques en AJAX séquentiel (une par une)
+ * - Ligne d'analyse dédiée sous chaque crypto (pas d'erreur de layout)
+ * - Time limit respecté avec queue intelligente
+ * - Messages uniquement via AJAX (pas de texte navigateur)
+ * - Bouton "Full Auto" : analyses, RL, trading, blog
+ * - Prompts IA ultra-professionnels optimisés
+ * - Workflow optimisé et incohérences corrigées
  */
 
 // ============================================================================
@@ -41,7 +39,7 @@ if (!function_exists('debugLog')) {
     }
 }
 
-debugLog('=== INDEX.PHP v5.0 AUTONOME STARTED ===', 'INFO');
+debugLog('=== INDEX.PHP v5.0 STARTED ===', 'INFO');
 
 try {
     require_once ROOT_DIR . '/config.php';
@@ -79,7 +77,7 @@ try {
     }
     debugLog('Found ' . count($analysesMap) . ' analyses', 'INFO');
 
-    // Vérifier la fraîcheur des analyses et préparer la queue auto
+    // Vérifier la fraîcheur des analyses
     $freshCount = 0;
     $needAnalysis = [];
     foreach ($coins as $coin) {
@@ -87,20 +85,10 @@ try {
         if ($analysis && ($analysis['generated_at'] > time() - 3600)) {
             $freshCount++;
         } else {
-            $needAnalysis[] = [
-                'id' => $coin['id'],
-                'name' => $coin['name'],
-                'symbol' => $coin['symbol'],
-                'price' => $coin['current_price'],
-                'change' => $coin['price_change_percentage_24h'] ?? 0,
-                'rank' => $coin['market_cap_rank']
-            ];
+            $needAnalysis[] = $coin['id'];
         }
     }
     $allFresh = ($freshCount >= count($coins) * 0.8);
-    
-    // Encoder la queue pour le JS
-    $autoAnalysisQueue = json_encode($needAnalysis);
 
     // Récupérer la dernière analyse globale (revue de presse)
     debugLog('Fetching global analysis...', 'INFO');
@@ -155,19 +143,11 @@ try {
     }
     debugLog('Portfolio stats calculated', 'INFO');
 
-    // Seuils RL - ACHAT À PARTIR DE 60 (et non 65)
+    // Seuils RL
     debugLog('Fetching RL thresholds...', 'INFO');
     $thresholds = $pdo->query("SELECT param, value FROM rl_thresholds")->fetchAll(PDO::FETCH_KEY_PAIR);
-    $buyScore = 60; // Force à 60 pour trading plus actif
-    $sellScore = 35;
-    
-    // Mettre à jour en base si nécessaire
-    if (($thresholds['buy_score'] ?? 65) != 60) {
-        $pdo->prepare("INSERT OR REPLACE INTO rl_thresholds (param, value) VALUES ('buy_score', ?)")
-           ->execute(['buy_score', 60]);
-        $pdo->prepare("INSERT OR REPLACE INTO rl_thresholds (param, value) VALUES ('sell_score', ?)")
-           ->execute(['sell_score', 35]);
-    }
+    $buyScore = $thresholds['buy_score'] ?? 65;
+    $sellScore = $thresholds['sell_score'] ?? 35;
     
     // Derniers trades pour la console
     debugLog('Fetching recent trades...', 'INFO');
@@ -184,13 +164,12 @@ try {
     $analysesMap = [];
     $globalAnalysis = null;
     $portfolioStats = ['cash' => 1000000, 'holdings_value' => 0, 'total_value' => 1000000, 'performance' => 0, 'positions_count' => 0, 'total_trades' => 0, 'winning_trades' => 0, 'losing_trades' => 0];
-    $buyScore = 60;
+    $buyScore = 65;
     $sellScore = 35;
     $recentTrades = [];
-    $autoAnalysisQueue = '[]';
 }
 
-// Fonction utilitaire pour formater les grands nombres
+// Fonction utilitaire pour formater les grands nombres (seulement si pas déjà définie)
 if (!function_exists('formatLargeNumber')) {
     function formatLargeNumber($number) {
         if ($number >= 1e12) return round($number / 1e12, 2) . ' B€';
