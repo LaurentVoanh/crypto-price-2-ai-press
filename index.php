@@ -34,15 +34,17 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', ERROR_LOG);
 
-// Fonction de logging robuste
-function debugLog($message, $level = 'INFO') {
-    $timestamp = date('Y-m-d H:i:s');
-    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
-    $caller = isset($backtrace[1]) ? $backtrace[1]['file'] . ':' . $backtrace[1]['line'] : 'unknown';
-    $logLine = "[$timestamp] [$level] [$caller] $message" . PHP_EOL;
-    
-    $logFile = ($level === 'ERROR' || $level === 'CRITICAL') ? ERROR_LOG : LOG_FILE;
-    @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+// Fonction de logging robuste (seulement si pas déjà définie)
+if (!function_exists('debugLog')) {
+    function debugLog($message, $level = 'INFO') {
+        $timestamp = date('Y-m-d H:i:s');
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        $caller = isset($backtrace[1]) ? $backtrace[1]['file'] . ':' . $backtrace[1]['line'] : 'unknown';
+        $logLine = "[$timestamp] [$level] [$caller] $message" . PHP_EOL;
+        
+        $logFile = ($level === 'ERROR' || $level === 'CRITICAL') ? ERROR_LOG : LOG_FILE;
+        @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+    }
 }
 
 // Handler personnalisé pour les erreurs fatales
@@ -212,13 +214,15 @@ try {
     $recentTrades = [];
 }
 
-// Fonction utilitaire pour formater les grands nombres
-function formatLargeNumber($number) {
-    if ($number >= 1e12) return round($number / 1e12, 2) . ' B€';
-    if ($number >= 1e9) return round($number / 1e9, 2) . ' Md€';
-    if ($number >= 1e6) return round($number / 1e6, 2) . ' M€';
-    if ($number >= 1e3) return round($number / 1e3, 2) . ' K€';
-    return round($number, 2) . '€';
+// Fonction utilitaire pour formater les grands nombres (seulement si pas déjà définie)
+if (!function_exists('formatLargeNumber')) {
+    function formatLargeNumber($number) {
+        if ($number >= 1e12) return round($number / 1e12, 2) . ' B€';
+        if ($number >= 1e9) return round($number / 1e9, 2) . ' Md€';
+        if ($number >= 1e6) return round($number / 1e6, 2) . ' M€';
+        if ($number >= 1e3) return round($number / 1e3, 2) . ' K€';
+        return round($number, 2) . '€';
+    }
 }
 
 debugLog('Index.php rendering completed', 'INFO');
