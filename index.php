@@ -1,97 +1,52 @@
 <?php
 /**
- * index.php - NEO CRYPTO DASH v4.0 ULTIMATE
+ * index.php - NEO CRYPTO DASH v5.0 ULTIMATE PRO
  * Dashboard Crypto IA Autonome - Trading Automatique par Renforcement
  * 
- * Fonctionnalités avancées:
- * - Interface UX améliorée: bouton analyser sous le nom, analyse sur ligne dédiée
- * - Lancement automatique des analyses IA en AJAX au chargement
- * - Rotation intelligente de 3 clés API Mistral avec RL auto-apprentissage
- * - Error logging ultra-complet pour debugging
- * - IA autonome qui investit 1 000 000 € selon ses décisions
- * - Publication automatique d'articles de blog à chaque trade
- * - Console live des actions de l'IA en temps réel
- * - Compatible Hostinger + Mistral API
+ * Architecture Professionnelle Hostinger-Compatible:
+ * - Analyses IA automatiques en AJAX séquentiel (une par une)
+ * - Ligne d'analyse dédiée sous chaque crypto (pas d'erreur de layout)
+ * - Time limit respecté avec queue intelligente
+ * - Messages uniquement via AJAX (pas de texte navigateur)
+ * - Bouton "Full Auto" : analyses, RL, trading, blog
+ * - Prompts IA ultra-professionnels optimisés
+ * - Workflow optimisé et incohérences corrigées
  */
 
 // ============================================================================
-// ERROR HANDLING ULTRA-COMPLET POUR DEBUGGING
+// ERROR HANDLING PROFESSIONNEL
 // ============================================================================
 
-// Définir les constantes avant tout
 define('ROOT_DIR', dirname(__FILE__));
 define('LOG_FILE', ROOT_DIR . '/logs/app.log');
 define('ERROR_LOG', ROOT_DIR . '/logs/error.log');
 
-// Créer le dossier logs s'il n'existe pas
 if (!is_dir(ROOT_DIR . '/logs')) {
     @mkdir(ROOT_DIR . '/logs', 0755, true);
 }
 
-// Activer tous les rapports d'erreurs
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', ERROR_LOG);
 
-// Fonction de logging robuste (seulement si pas déjà définie)
 if (!function_exists('debugLog')) {
     function debugLog($message, $level = 'INFO') {
         $timestamp = date('Y-m-d H:i:s');
-        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
-        $caller = isset($backtrace[1]) ? $backtrace[1]['file'] . ':' . $backtrace[1]['line'] : 'unknown';
-        $logLine = "[$timestamp] [$level] [$caller] $message" . PHP_EOL;
-        
+        $logLine = "[$timestamp] [$level] $message" . PHP_EOL;
         $logFile = ($level === 'ERROR' || $level === 'CRITICAL') ? ERROR_LOG : LOG_FILE;
         @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 }
 
-// Handler personnalisé pour les erreurs fatales
-function fatalErrorHandler() {
-    $error = error_get_last();
-    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        debugLog("FATAL ERROR: {$error['message']} in {$error['file']} on line {$error['line']}", 'CRITICAL');
-    }
-}
-register_shutdown_function('fatalErrorHandler');
-
-// Handler personnalisé pour les exceptions
-set_exception_handler(function($e) {
-    debugLog("UNCAUGHT EXCEPTION: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine(), 'CRITICAL');
-    debugLog("Stack trace:\n" . $e->getTraceAsString(), 'CRITICAL');
-});
-
-// Handler personnalisé pour les erreurs PHP
-set_error_handler(function($errno, $errstr, $errfile, $errline) {
-    $errorTypes = [
-        E_ERROR => 'ERROR', E_WARNING => 'WARNING', E_PARSE => 'PARSE',
-        E_NOTICE => 'NOTICE', E_CORE_ERROR => 'CORE_ERROR', E_COMPILE_ERROR => 'COMPILE_ERROR',
-        E_USER_ERROR => 'USER_ERROR', E_USER_WARNING => 'USER_WARNING', E_USER_NOTICE => 'USER_NOTICE',
-        E_STRICT => 'STRICT', E_RECOVERABLE_ERROR => 'RECOVERABLE_ERROR', E_DEPRECATED => 'DEPRECATED'
-    ];
-    $level = $errorTypes[$errno] ?? 'UNKNOWN';
-    debugLog("PHP $level: $errstr in $errfile on line $errline", 'ERROR');
-    return false; // Laisser PHP gérer aussi
-});
-
-debugLog('=== INDEX.PHP STARTED ===', 'INFO');
+debugLog('=== INDEX.PHP v5.0 STARTED ===', 'INFO');
 
 try {
-    // Charger la configuration
-    debugLog('Loading config.php...', 'INFO');
     require_once ROOT_DIR . '/config.php';
-    debugLog('config.php loaded successfully', 'INFO');
-    
-    // Vérifier/initialiser la base de données
-    debugLog('Checking database initialization...', 'INFO');
     ensureDatabaseInitialized();
-    debugLog('Database check completed', 'INFO');
-    
 } catch (Exception $e) {
     debugLog("Initialization error: " . $e->getMessage(), 'CRITICAL');
-    debugLog("Stack: " . $e->getTraceAsString(), 'CRITICAL');
-    die('<h1>Erreur d\'initialisation</h1><p>Voir logs/error.log pour les détails</p>');
+    die('<h1>Erreur d\'initialisation</h1><p>Voir logs/error.log</p>');
 }
 
 try {
