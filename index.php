@@ -14,27 +14,101 @@
  * - Compatible Hostinger + Mistral API
  */
 
-// Gestion des erreurs pour débogage
-error_reporting(E_ALL);
-ini_set('display_errors', 0); // Ne pas afficher les erreurs aux utilisateurs
-ini_set('log_errors', 1);
+// ============================================================================
+// ERROR HANDLING ULTRA-COMPLET POUR DEBUGGING
+// ============================================================================
 
+// Définir les constantes avant tout
 define('ROOT_DIR', dirname(__FILE__));
-require_once ROOT_DIR . '/config.php';
-ensureDatabaseInitialized();
+define('LOG_FILE', ROOT_DIR . '/logs/app.log');
+define('ERROR_LOG', ROOT_DIR . '/logs/error.log');
+
+// Créer le dossier logs s'il n'existe pas
+if (!is_dir(ROOT_DIR . '/logs')) {
+    @mkdir(ROOT_DIR . '/logs', 0755, true);
+}
+
+// Activer tous les rapports d'erreurs
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', ERROR_LOG);
+
+// Fonction de logging robuste
+function debugLog($message, $level = 'INFO') {
+    $timestamp = date('Y-m-d H:i:s');
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+    $caller = isset($backtrace[1]) ? $backtrace[1]['file'] . ':' . $backtrace[1]['line'] : 'unknown';
+    $logLine = "[$timestamp] [$level] [$caller] $message" . PHP_EOL;
+    
+    $logFile = ($level === 'ERROR' || $level === 'CRITICAL') ? ERROR_LOG : LOG_FILE;
+    @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+}
+
+// Handler personnalisé pour les erreurs fatales
+function fatalErrorHandler() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        debugLog("FATAL ERROR: {$error['message']} in {$error['file']} on line {$error['line']}", 'CRITICAL');
+    }
+}
+register_shutdown_function('fatalErrorHandler');
+
+// Handler personnalisé pour les exceptions
+set_exception_handler(function($e) {
+    debugLog("UNCAUGHT EXCEPTION: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine(), 'CRITICAL');
+    debugLog("Stack trace:\n" . $e->getTraceAsString(), 'CRITICAL');
+});
+
+// Handler personnalisé pour les erreurs PHP
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    $errorTypes = [
+        E_ERROR => 'ERROR', E_WARNING => 'WARNING', E_PARSE => 'PARSE',
+        E_NOTICE => 'NOTICE', E_CORE_ERROR => 'CORE_ERROR', E_COMPILE_ERROR => 'COMPILE_ERROR',
+        E_USER_ERROR => 'USER_ERROR', E_USER_WARNING => 'USER_WARNING', E_USER_NOTICE => 'USER_NOTICE',
+        E_STRICT => 'STRICT', E_RECOVERABLE_ERROR => 'RECOVERABLE_ERROR', E_DEPRECATED => 'DEPRECATED'
+    ];
+    $level = $errorTypes[$errno] ?? 'UNKNOWN';
+    debugLog("PHP $level: $errstr in $errfile on line $errline", 'ERROR');
+    return false; // Laisser PHP gérer aussi
+});
+
+debugLog('=== INDEX.PHP STARTED ===', 'INFO');
 
 try {
+    // Charger la configuration
+    debugLog('Loading config.php...', 'INFO');
+    require_once ROOT_DIR . '/config.php';
+    debugLog('config.php loaded successfully', 'INFO');
+    
+    // Vérifier/initialiser la base de données
+    debugLog('Checking database initialization...', 'INFO');
+    ensureDatabaseInitialized();
+    debugLog('Database check completed', 'INFO');
+    
+} catch (Exception $e) {
+    debugLog("Initialization error: " . $e->getMessage(), 'CRITICAL');
+    debugLog("Stack: " . $e->getTraceAsString(), 'CRITICAL');
+    die('<h1>Erreur d\'initialisation</h1><p>Voir logs/error.log pour les détails</p>');
+}
+
+try {
+    debugLog('Connecting to database...', 'INFO');
     $pdo = new PDO("sqlite:" . DB_FILE);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    debugLog('Database connection successful', 'INFO');
 
     // Récupérer les 100 premières cryptos avec toutes les données
+    debugLog('Fetching coins data...', 'INFO');
     $stmt = $pdo->query("SELECT id, symbol, name, image, current_price, market_cap, market_cap_rank, 
                          price_change_percentage_24h, total_volume, circulating_supply, sparkline,
                          ath, atl, high_24h, low_24h, market_cap_change_percentage_24h
                          FROM coins ORDER BY market_cap_rank ASC LIMIT 100");
     $coins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    debugLog('Found ' . count($coins) . ' coins', 'INFO');
 
     // Récupérer les analyses individuelles récentes
+    debugLog('Fetching individual analyses...', 'INFO');
     $stmtAnalyses = $pdo->query("SELECT coin_id, advice, trend, score, generated_at, sentiment_score,
                                  buy_signals, sell_signals, neutral_signals, technical_summary
                                  FROM individual_analysis ORDER BY generated_at DESC");
@@ -44,6 +118,7 @@ try {
             $analysesMap[$row['coin_id']] = $row;
         }
     }
+    debugLog('Found ' . count($analysesMap) . ' analyses', 'INFO');
 
     // Vérifier la fraîcheur des analyses
     $freshCount = 0;
@@ -59,6 +134,7 @@ try {
     $allFresh = ($freshCount >= count($coins) * 0.8);
 
     // Récupérer la dernière analyse globale (revue de presse)
+    debugLog('Fetching global analysis...', 'INFO');
     $globalAnalysis = null;
     $stmtGlobal = $pdo->query("SELECT analysis_text, global_advice, market_summary, market_sentiment,
                                fear_greed_index, top_opportunities, top_risks, generated_at, model_used
@@ -66,6 +142,9 @@ try {
     $global = $stmtGlobal->fetch(PDO::FETCH_ASSOC);
     if ($global) {
         $globalAnalysis = $global;
+        debugLog('Global analysis found from ' . date('Y-m-d H:i', $global['generated_at']), 'INFO');
+    } else {
+        debugLog('No global analysis found', 'WARNING');
     }
 
     // Statistiques du portefeuille
@@ -105,20 +184,25 @@ try {
         $portfolioStats['winning_trades'] = $tradeStats['wins'] ?? 0;
         $portfolioStats['losing_trades'] = $tradeStats['losses'] ?? 0;
     }
+    debugLog('Portfolio stats calculated', 'INFO');
 
     // Seuils RL
+    debugLog('Fetching RL thresholds...', 'INFO');
     $thresholds = $pdo->query("SELECT param, value FROM rl_thresholds")->fetchAll(PDO::FETCH_KEY_PAIR);
     $buyScore = $thresholds['buy_score'] ?? 65;
     $sellScore = $thresholds['sell_score'] ?? 35;
     
     // Derniers trades pour la console
+    debugLog('Fetching recent trades...', 'INFO');
     $recentTrades = $pdo->query("SELECT t.*, c.name, c.symbol FROM trades t 
                                  JOIN coins c ON t.coin_id = c.id 
                                  ORDER BY t.timestamp DESC LIMIT 10")
                         ->fetchAll(PDO::FETCH_ASSOC);
+    debugLog('Found ' . count($recentTrades) . ' recent trades', 'INFO');
 
 } catch (PDOException $e) {
-    appLog("Index error: " . $e->getMessage(), 'ERROR');
+    debugLog("Database error: " . $e->getMessage(), 'CRITICAL');
+    debugLog("Stack trace: " . $e->getTraceAsString(), 'CRITICAL');
     $coins = [];
     $analysesMap = [];
     $globalAnalysis = null;
@@ -136,6 +220,8 @@ function formatLargeNumber($number) {
     if ($number >= 1e3) return round($number / 1e3, 2) . ' K€';
     return round($number, 2) . '€';
 }
+
+debugLog('Index.php rendering completed', 'INFO');
 ?>
 <!DOCTYPE html>
 <html lang="fr">

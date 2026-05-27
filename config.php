@@ -49,11 +49,12 @@ foreach ($dirsToCreate as $dir) {
 // ============================================================================
 
 define('DEFAULT_MISTRAL_API_KEYS', [
-    // ⚠️ REMPLACEZ CES VALEURS PAR VOS VRAIES CLÉS API MISTRAL
-    // Les clés actuelles sont des placeholders pour sécurité (repo public)
-    'YOUR_FIRST_MISTRAL_API_KEY_COMPLETE_HERE',
-    'YOUR_SECOND_MISTRAL_API_KEY_COMPLETE_HERE', 
-    'YOUR_THIRD_MISTRAL_API_KEY_COMPLETE_HERE'
+    // Clés API Mistral Free Tier Développeur
+    // Chaque clé offre 1 milliard de tokens/mois
+    // Format: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    'sk-5qaRTj8Rakeo3rGXRShytu',
+    'sk-vEzQFruXkFxxxxxxxxxxxxxxx',
+    'sk-placeholder3xxxxxxxxxxxxxx'
 ]);
 
 // Endpoint API Mistral
