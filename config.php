@@ -12,35 +12,39 @@
  * - Gestion d'erreurs robuste
  */
 
-// Gestion des erreurs pour débogage
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-
-// Empêcher l'exécution directe
-if (!defined('ROOT_DIR')) {
-    define('ROOT_DIR', dirname(__FILE__));
-}
-
-// ============================================================================
-// CONFIGURATION GÉNÉRALE
-// ============================================================================
-
-define('DB_FILE', ROOT_DIR . '/crypto_cache.db');
-define('LOG_FILE', ROOT_DIR . '/logs/app.log');
-define('ERROR_LOG', ROOT_DIR . '/logs/error.log');
-define('API_LOG', ROOT_DIR . '/logs/api_usage.log');
-define('CACHE_DIR', ROOT_DIR . '/cache');
-define('DATA_DIR', ROOT_DIR . '/data');
-define('EXPORTS_DIR', ROOT_DIR . '/exports');
-
-// Créer les dossiers nécessaires avec permissions Hostinger-safe (0755)
-$dirsToCreate = [CACHE_DIR, DATA_DIR, EXPORTS_DIR, ROOT_DIR . '/logs'];
-foreach ($dirsToCreate as $dir) {
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
+// Empêcher la redéfinition des constantes
+if (!defined('CONFIG_LOADED')) {
+    define('CONFIG_LOADED', true);
+    
+    // Gestion des erreurs pour débogage
+    error_reporting(E_ALL);
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 1);
+    
+    // Empêcher l'exécution directe
+    if (!defined('ROOT_DIR')) {
+        define('ROOT_DIR', dirname(__FILE__));
     }
-}
+    
+    // ============================================================================
+    // CONFIGURATION GÉNÉRALE
+    // ============================================================================
+    
+    define('DB_FILE', ROOT_DIR . '/crypto_cache.db');
+    define('LOG_FILE', ROOT_DIR . '/logs/app.log');
+    define('ERROR_LOG', ROOT_DIR . '/logs/error.log');
+    define('API_LOG', ROOT_DIR . '/logs/api_usage.log');
+    define('CACHE_DIR', ROOT_DIR . '/cache');
+    define('DATA_DIR', ROOT_DIR . '/data');
+    define('EXPORTS_DIR', ROOT_DIR . '/exports');
+    
+    // Créer les dossiers nécessaires avec permissions Hostinger-safe (0755)
+    $dirsToCreate = [CACHE_DIR, DATA_DIR, EXPORTS_DIR, ROOT_DIR . '/logs'];
+    foreach ($dirsToCreate as $dir) {
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+    }
 
 // ============================================================================
 // CLÉS API MISTRAL - À REMPLACER PAR VOS VRAIES CLÉS
@@ -52,9 +56,9 @@ define('DEFAULT_MISTRAL_API_KEYS', [
     // Clés API Mistral Free Tier Développeur
     // Chaque clé offre 1 milliard de tokens/mois
     // Format: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    'sk-5qaRTj8Rakeo3rGXRShytu',
-    'sk-vEzQFruXkFxxxxxxxxxxxxxxx',
-    'sk-placeholder3xxxxxxxxxxxxxx'
+    'sk-5qaRTjWEP5ZbH8Rake',
+    'sk-o3rG1zvHXRShytu',
+    'sk-vEzQDjFruXkF'
 ]);
 
 // Endpoint API Mistral
@@ -386,25 +390,29 @@ define('UI_CONFIG', [
  * @param string $message Message à logger
  * @param string $level Niveau de log (INFO, WARNING, ERROR, CRITICAL)
  */
-function appLog($message, $level = 'INFO') {
-    $timestamp = date('Y-m-d H:i:s');
-    $logLine = "[$timestamp] [$level] $message" . PHP_EOL;
-    
-    if ($level === 'ERROR' || $level === 'CRITICAL') {
-        file_put_contents(ERROR_LOG, $logLine, FILE_APPEND | LOCK_EX);
-    } elseif ($level === 'API') {
-        file_put_contents(API_LOG, $logLine, FILE_APPEND | LOCK_EX);
-    } else {
-        file_put_contents(LOG_FILE, $logLine, FILE_APPEND | LOCK_EX);
+if (!function_exists('appLog')) {
+    function appLog($message, $level = 'INFO') {
+        $timestamp = date('Y-m-d H:i:s');
+        $logLine = "[$timestamp] [$level] $message" . PHP_EOL;
+        
+        if ($level === 'ERROR' || $level === 'CRITICAL') {
+            file_put_contents(ERROR_LOG, $logLine, FILE_APPEND | LOCK_EX);
+        } elseif ($level === 'API') {
+            file_put_contents(API_LOG, $logLine, FILE_APPEND | LOCK_EX);
+        } else {
+            file_put_contents(LOG_FILE, $logLine, FILE_APPEND | LOCK_EX);
+        }
     }
 }
 
 /**
  * Gestion d'erreur centralisée
  */
-function handleError($errno, $errstr, $errfile, $errline) {
-    appLog("PHP Error [$errno]: $errstr in $errfile on line $errline", 'ERROR');
-    return false;
+if (!function_exists('handleError')) {
+    function handleError($errno, $errstr, $errfile, $errline) {
+        appLog("PHP Error [$errno]: $errstr in $errfile on line $errline", 'ERROR');
+        return false;
+    }
 }
 
 set_error_handler('handleError');
@@ -412,96 +420,112 @@ set_error_handler('handleError');
 /**
  * Nettoyer les anciennes entrées de cache
  */
-function cleanupCache() {
-    try {
-        $pdo = new PDO('sqlite:' . DB_FILE);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        
-        $cutoff = time() - (CACHE_CONFIG['max_historical_days'] * 86400);
-        $pdo->exec("DELETE FROM historical_snapshots WHERE snapshot_time < $cutoff");
-        $pdo->exec("DELETE FROM global_analysis WHERE generated_at < $cutoff");
-        $pdo->exec("DELETE FROM coin_analysis_history WHERE timestamp < $cutoff");
-        $pdo->exec("DELETE FROM api_usage_logs WHERE timestamp < $cutoff");
-        
-        appLog("Cache cleanup completed - deleted entries older than " . CACHE_CONFIG['max_historical_days'] . " days");
-    } catch (Exception $e) {
-        appLog("Cache cleanup failed: " . $e->getMessage(), 'ERROR');
+if (!function_exists('cleanupCache')) {
+    function cleanupCache() {
+        try {
+            $pdo = new PDO('sqlite:' . DB_FILE);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            
+            $cutoff = time() - (CACHE_CONFIG['max_historical_days'] * 86400);
+            $pdo->exec("DELETE FROM historical_snapshots WHERE snapshot_time < $cutoff");
+            $pdo->exec("DELETE FROM global_analysis WHERE generated_at < $cutoff");
+            $pdo->exec("DELETE FROM coin_analysis_history WHERE timestamp < $cutoff");
+            $pdo->exec("DELETE FROM api_usage_logs WHERE timestamp < $cutoff");
+            
+            appLog("Cache cleanup completed - deleted entries older than " . CACHE_CONFIG['max_historical_days'] . " days");
+        } catch (Exception $e) {
+            appLog("Cache cleanup failed: " . $e->getMessage(), 'ERROR');
+        }
     }
 }
 
 /**
  * Vérifier et initialiser la base de données
  */
-function ensureDatabaseInitialized() {
-    if (!file_exists(DB_FILE)) {
-        require_once ROOT_DIR . '/init_db.php';
-        initializeDatabase();
+if (!function_exists('ensureDatabaseInitialized')) {
+    function ensureDatabaseInitialized() {
+        if (!file_exists(DB_FILE)) {
+            require_once ROOT_DIR . '/init_db.php';
+            initializeDatabase();
+        }
     }
 }
 
 /**
  * Formater un nombre avec séparateurs français
  */
-function formatNumber($number, $decimals = 2) {
-    return number_format($number, $decimals, ',', ' ');
+if (!function_exists('formatNumber')) {
+    function formatNumber($number, $decimals = 2) {
+        return number_format($number, $decimals, ',', ' ');
+    }
 }
 
 /**
  * Formater une grande valeur (K, M, Md, B)
  */
-function formatLargeNumber($number) {
-    if ($number >= 1e12) {
-        return round($number / 1e12, 2) . ' B€';
-    } elseif ($number >= 1e9) {
-        return round($number / 1e9, 2) . ' Md€';
-    } elseif ($number >= 1e6) {
-        return round($number / 1e6, 2) . ' M€';
-    } elseif ($number >= 1e3) {
-        return round($number / 1e3, 2) . ' K€';
+if (!function_exists('formatLargeNumber')) {
+    function formatLargeNumber($number) {
+        if ($number >= 1e12) {
+            return round($number / 1e12, 2) . ' B€';
+        } elseif ($number >= 1e9) {
+            return round($number / 1e9, 2) . ' Md€';
+        } elseif ($number >= 1e6) {
+            return round($number / 1e6, 2) . ' M€';
+        } elseif ($number >= 1e3) {
+            return round($number / 1e3, 2) . ' K€';
+        }
+        return round($number, 2) . '€';
     }
-    return round($number, 2) . '€';
 }
 
 /**
  * Obtenir le modèle optimal pour une tâche
  */
-function getModelForTask($taskName) {
-    return TASK_MODEL_MAPPING[$taskName] ?? API_ROTATION_CONFIG['fallback_model'];
+if (!function_exists('getModelForTask')) {
+    function getModelForTask($taskName) {
+        return TASK_MODEL_MAPPING[$taskName] ?? API_ROTATION_CONFIG['fallback_model'];
+    }
 }
 
 /**
  * Calculer le score de confiance basé sur l'historique
  */
-function calculateConfidenceScore($coinId, $pdo) {
-    try {
-        $stmt = $pdo->prepare("SELECT AVG(accuracy_score) as avg_accuracy, COUNT(*) as count 
-                               FROM coin_analysis_history 
-                               WHERE coin_id = ? AND accuracy_score IS NOT NULL 
-                               LIMIT 20");
-        $stmt->execute([$coinId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$result || $result['count'] < 3) {
+if (!function_exists('calculateConfidenceScore')) {
+    function calculateConfidenceScore($coinId, $pdo) {
+        try {
+            $stmt = $pdo->prepare("SELECT AVG(accuracy_score) as avg_accuracy, COUNT(*) as count 
+                                   FROM coin_analysis_history 
+                                   WHERE coin_id = ? AND accuracy_score IS NOT NULL 
+                                   LIMIT 20");
+            $stmt->execute([$coinId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$result || $result['count'] < 3) {
+                return 50;
+            }
+            
+            $weight = min(1, $result['count'] / 20);
+            return round(($result['avg_accuracy'] * $weight) + (50 * (1 - $weight)));
+        } catch (Exception $e) {
             return 50;
         }
-        
-        $weight = min(1, $result['count'] / 20);
-        return round(($result['avg_accuracy'] * $weight) + (50 * (1 - $weight)));
-    } catch (Exception $e) {
-        return 50;
     }
 }
 
 // ============================================================================
-// CHARGEMENT AUTOMATIQUE AU STARTUP
+// CHARGEMENT AUTOMATIQUE AU STARTUP (seulement si inclus dans un autre fichier)
 // ============================================================================
 
-date_default_timezone_set('Europe/Paris');
+if (!defined('SKIP_CONFIG_AUTOLOAD')) {
+    date_default_timezone_set('Europe/Paris');
+    
+    appLog('═══════════════════════════════════════════════════════');
+    appLog('NEO CRYPTO DASH v' . UI_CONFIG['app_version'] . ' configuration loaded');
+    appLog('Timezone: Europe/Paris | PHP Version: ' . phpversion());
+    appLog('Database: ' . DB_FILE);
+    appLog('═══════════════════════════════════════════════════════');
+}
 
-appLog('═══════════════════════════════════════════════════════');
-appLog('NEO CRYPTO DASH v' . UI_CONFIG['app_version'] . ' configuration loaded');
-appLog('Timezone: Europe/Paris | PHP Version: ' . phpversion());
-appLog('Database: ' . DB_FILE);
-appLog('═══════════════════════════════════════════════════════');
+} // Fin du bloc CONFIG_LOADED
 
 ?>
