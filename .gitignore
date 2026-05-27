@@ -1,4 +1,1 @@
-```
-# Backup files
-*.backup
-```
+Nothing should be ignored since only a PHP source file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
